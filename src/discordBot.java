@@ -31,19 +31,21 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 	String channelID;
 	String token;
 	String name;
-	WebSocket web;
+	WebSocket socket;
 	int heartbeatInterval;
 	Timer hbTimer;
+	WebSocket webS;
 	public discordBot(String c, String t, String n) {
 		this.channelID = c;
 		this.token = t;
 		this.name = n;
-		WebSocketFactory wsf = new WebSocketFactory();
+		
 		try {
-			web = wsf.createSocket(getGateway());
-			web.addListener(this);
+			WebSocketFactory wsf = new WebSocketFactory();
+			this.socket = wsf.createSocket(getGateway());
+			socket.addListener(this);
 
-			web.connect();
+			socket.connect();
 		} catch (IOException e) {
 
 			e.printStackTrace();
@@ -65,9 +67,9 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 	}
 
 	public void botMessage(String input) {
+		String message = "{\"content\":\"whatsup\"}";
 		try {
-
-			String message = "{\"content\":\"" + input + "\"}";
+			System.out.println(message);
 			URL url = new URL("https://discord.com/api/channels/" + channelID + "/messages");
 			HttpsURLConnection hc = (HttpsURLConnection) url.openConnection();
 			hc.setDoOutput(true);
@@ -108,6 +110,8 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 				v = in.read();
 			}
 			System.out.println(data);
+			in.close();
+			hc.disconnect();
 			JsonObject o = getJsonObjectFromString(data);
 			ans = o.getString("url");
 		} catch (MalformedURLException e) {
@@ -149,9 +153,10 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 
 	@Override
 	public void onFrame(WebSocket websocket, WebSocketFrame frame) {
-		System.out.println(frame);
+		//System.out.println(frame);
 		String payload = frame.getPayloadText();
 		JsonObject obj = getJsonObjectFromString(payload);
+		
 		int op = obj.getInt("op");
 		if (op == 10) {
 			JsonObject d = obj.getJsonObject("d");
@@ -161,7 +166,7 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 					+ "    \"intents\": 513,\n\r" + "    \"properties\": {\n\r" + "      \"$os\": \"linux\",\n\r"
 					+ "      \"$browser\": \"my_library\",\n\r" + "      \"$device\": \"my_library\"\n\r" + "    }\n\r"
 					+ "  }\n\r" + "}\n\r" + "";
-			web.sendText(auth);
+			socket.sendText(auth);
 		}
 		else if(op==0) {
 			String type = obj.getString("t");
@@ -180,10 +185,13 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 				hbTimer.start();
 			}
 		}
+		
 	}
 	void messageReceived(String message, String user) {
+		System.out.println(message + "   " +user);
 		if(message.equals("apple")) {
-			botMessage(user);
+			System.out.println("hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii");
+			botMessage("hi");
 		}
 	}
 	void sendHeartbeat() {
@@ -191,7 +199,7 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 				"    \"op\": 1,\n" + 
 				"    \"d\": null\n" + 
 				"}";
-		web.sendText(s);
+		socket.sendText(s);
 	}
 
 	@Override
@@ -199,4 +207,6 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 		// TODO Auto-generated method stub
 		sendHeartbeat();
 	}
+
+	
 }
