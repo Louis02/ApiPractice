@@ -35,11 +35,20 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 	int heartbeatInterval;
 	Timer hbTimer;
 	WebSocket webS;
+	private String sessionID;
+	private Integer sequenceCode;
+	private boolean reconnect;
+
 	public discordBot(String c, String t, String n) {
 		this.channelID = c;
 		this.token = t;
 		this.name = n;
-		
+		makeConnectionMethod();
+
+	}
+
+	private void makeConnectionMethod() {
+
 		try {
 			WebSocketFactory wsf = new WebSocketFactory();
 			this.socket = wsf.createSocket(getGateway());
@@ -141,6 +150,10 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 	@Override
 	public void onDisconnected(WebSocket websocket, WebSocketFrame serverCloseFrame, WebSocketFrame clientCloseFrame,
 			boolean closedByServer) {
+		if (closedByServer) {
+			reconnect = true;
+			makeConnectionMethod();
+		}
 		System.out.println(clientCloseFrame);
 		System.out.println(serverCloseFrame);
 		System.out.println("disconnected");
@@ -153,52 +166,73 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 
 	@Override
 	public void onFrame(WebSocket websocket, WebSocketFrame frame) {
-		//System.out.println(frame);
+		// System.out.println(frame);
 		String payload = frame.getPayloadText();
 		JsonObject obj = getJsonObjectFromString(payload);
-		
+		try {
+			sequenceCode = obj.getInt("s");
+		} catch (Exception e) {
+			sequenceCode = null;
+		}
 		int op = obj.getInt("op");
 		if (op == 10) {
 			JsonObject d = obj.getJsonObject("d");
 			heartbeatInterval = d.getInt("heartbeat_interval");
-			
-			String auth = "{\n\r" + "  \"op\": 2,\n\r" + "  \"d\": {\n\r" + "    \"token\": \"" + token + "\",\n\r"
-					+ "    \"intents\": 513,\n\r" + "    \"properties\": {\n\r" + "      \"$os\": \"linux\",\n\r"
-					+ "      \"$browser\": \"my_library\",\n\r" + "      \"$device\": \"my_library\"\n\r" + "    }\n\r"
-					+ "  }\n\r" + "}\n\r" + "";
+			System.out.println(heartbeatInterval);
+			String auth = "";
+			if (reconnect) {
+				auth = "{\n" + 
+						"  \"op\": 6,\n" + 
+						"  \"d\": {\n" + 
+						"    \"token\": \""+token+"\",\n" + 
+						"    \"session_id\": \""+sessionID+"\",\n" + 
+						"    \"seq\": "+sequenceCode+"\n" + 
+						"  }\n" + 
+						"}";
+
+				reconnect = false;
+
+			} else {
+				auth = "{\n\r" + "  \"op\": 2,\n\r" + "  \"d\": {\n\r" + "    \"token\": \"" + token + "\",\n\r"
+						+ "    \"intents\": 513,\n\r" + "    \"properties\": {\n\r" + "      \"$os\": \"linux\",\n\r"
+						+ "      \"$browser\": \"my_library\",\n\r" + "      \"$device\": \"my_library\"\n\r"
+						+ "    }\n\r" + "  }\n\r" + "}\n\r" + "";
+			}
 			socket.sendText(auth);
-		}
-		else if(op==0) {
+		} else if (op == 0) {
 			String type = obj.getString("t");
-			if(type.equals("MESSAGE_CREATE")) {
+			if (type.equals("MESSAGE_CREATE")) {
 				JsonObject d = obj.getJsonObject("d");
 				JsonObject author = d.getJsonObject("author");
 				String message = d.getString("content");
-				String user =author.getString("username");
-				if(!user.equals(name)) {
+				String user = author.getString("username");
+				if (!user.equals(name)) {
 					messageReceived(message, user);
 				}
-			}
-			else if(type.equals("READY")) {
+			} else if (type.equals("READY")) {
+				JsonObject j = obj.getJsonObject("d");
+
+				sessionID = j.getString("session_id");
 				hbTimer = new Timer(heartbeatInterval, this);
 				sendHeartbeat();
-				hbTimer.start();
+				 hbTimer.start();
+			} else if (op == 1) {
+				sendHeartbeat();
 			}
 		}
-		
+
 	}
+
 	void messageReceived(String message, String user) {
-		System.out.println(message + "   " +user);
-		if(message.equals("apple")) {
-			System.out.println("hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii");
+		System.out.println(message + "   " + user);
+		if (message.equals("apple")) {
+			System.out.println("hiiiiiiiiiiiii");
 			botMessage("hi");
 		}
 	}
+
 	void sendHeartbeat() {
-		String s = "{\n" + 
-				"    \"op\": 1,\n" + 
-				"    \"d\": null\n" + 
-				"}";
+		String s = "{\n" + "    \"op\": 1,\n" + "    \"d\": " + sequenceCode + "\n" + "}";
 		socket.sendText(s);
 	}
 
@@ -208,5 +242,4 @@ public class discordBot extends WebSocketAdapter implements ActionListener {
 		sendHeartbeat();
 	}
 
-	
 }
